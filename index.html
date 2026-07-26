@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Centro de Control WoL</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+        }
+        /* Custom scrollbar for a sleek look */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+        
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .pulse-green {
+            box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+            animation: pulse-g 2s infinite;
+        }
+        @keyframes pulse-g {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+        }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+
+    <div class="max-w-6xl mx-auto">
+        <!-- Header -->
+        <header class="flex flex-col md:flex-row justify-between items-center mb-10 gap-4">
+            <div>
+                <h1 class="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-indigo-500">
+                    <i class="fa-solid fa-network-wired mr-2 text-blue-500"></i> Control Remoto
+                </h1>
+                <p class="text-slate-400 text-sm mt-1">Gestiona el encendido de tus equipos</p>
+            </div>
+            <button onclick="openModal()" class="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-lg font-medium transition-all shadow-lg shadow-blue-500/30 flex items-center gap-2">
+                <i class="fa-solid fa-plus"></i> Añadir Equipo
+            </button>
+        </header>
+
+        <!-- Device Grid -->
+        <div id="deviceGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Los dispositivos se inyectarán aquí mediante JavaScript -->
+        </div>
+
+        <!-- Empty State -->
+        <div id="emptyState" class="hidden flex-col items-center justify-center py-20 text-slate-500">
+            <i class="fa-solid fa-server text-6xl mb-4 text-slate-700"></i>
+            <h2 class="text-xl font-semibold text-slate-300">No hay equipos registrados</h2>
+            <p class="mt-2">Haz clic en "Añadir Equipo" para comenzar.</p>
+        </div>
+    </div>
+
+    <!-- Modal Añadir/Editar -->
+    <div id="deviceModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4 opacity-0 transition-opacity duration-300">
+        <div class="glass-panel rounded-2xl w-full max-w-md p-6 transform scale-95 transition-transform duration-300" id="modalContent">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-bold text-white" id="modalTitle">Nuevo Equipo</h2>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-white transition-colors">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+            
+            <form id="deviceForm" onsubmit="saveDevice(event)">
+                <input type="hidden" id="deviceId">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-300 mb-1">Nombre del Dispositivo</label>
+                        <input type="text" id="deviceName" required placeholder="Ej. Ryzen PC" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-300 mb-1">Dirección MAC</label>
+                        <input type="text" id="deviceMac" required placeholder="78-46-5C-8E-A5-DF" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-blue-500 font-mono text-sm uppercase transition-all">
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-300 mb-1">IP / Broadcast</label>
+                            <input type="text" id="deviceIp" required placeholder="192.168.1.255" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-blue-500 font-mono text-sm transition-all">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-300 mb-1">IP Local (Status)</label>
+                            <input type="text" id="deviceLocalIp" required placeholder="192.168.1.180" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-blue-500 font-mono text-sm transition-all" title="IP para comprobar si está encendido">
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-8 flex gap-3">
+                    <button type="button" onclick="closeModal()" class="flex-1 bg-slate-800 hover:bg-slate-700 text-white py-2.5 rounded-lg font-medium transition-colors">Cancelar</button>
+                    <button type="submit" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-2.5 rounded-lg font-medium transition-colors shadow-lg shadow-blue-500/20">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2"></div>
+
+    <script>
+        // Configuración de la API. Aquí colocarás tu enlace de Render en el paso 3.
+        const API_URL = 'https://TU-PROYECTO.onrender.com/api'; 
+        
+        // Estado de la aplicación
+        let devices = JSON.parse(localStorage.getItem('wol_devices')) || [];
+        
+        // Inicialización
+        document.addEventListener('DOMContentLoaded', () => {
+            renderDevices();
+            // Comprobar estado cada 5 segundos
+            setInterval(checkAllStatuses, 5000);
+            checkAllStatuses(); // Primera comprobación inmediata
+        });
+
+        // ==================== RENDERIZADO ====================
+        function renderDevices() {
+            const grid = document.getElementById('deviceGrid');
+            const emptyState = document.getElementById('emptyState');
+            
+            grid.innerHTML = '';
+            
+            if (devices.length === 0) {
+                emptyState.classList.remove('hidden');
+                emptyState.classList.add('flex');
+            } else {
+                emptyState.classList.add('hidden');
+                emptyState.classList.remove('flex');
+                
+                devices.forEach(device => {
+                    const isOnline = device.status === 'online';
+                    
+                    const card = document.createElement('div');
+                    card.className = 'glass-panel rounded-2xl p-6 relative group overflow-hidden transition-all hover:border-slate-600';
+                    card.innerHTML = `
+                        <!-- Decoration -->
+                        <div class="absolute -right-6 -top-6 w-24 h-24 bg-blue-500/10 rounded-full blur-xl group-hover:bg-blue-500/20 transition-all"></div>
+                        
+                        <div class="flex justify-between items-start mb-4">
+                            <div>
+                                <h3 class="text-xl font-bold text-white flex items-center gap-2">
+                                    ${device.name}
+                                </h3>
+                                <div class="flex items-center gap-2 mt-1">
+                                    <span class="relative flex h-3 w-3">
+                                      <span class="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isOnline ? 'bg-green-400' : 'hidden'}"></span>
+                                      <span class="relative inline-flex rounded-full h-3 w-3 ${isOnline ? 'bg-green-500 pulse-green' : 'bg-red-500'}"></span>
+                                    </span>
+                                    <span class="text-xs font-medium ${isOnline ? 'text-green-400' : 'text-red-400'} uppercase tracking-wider">
+                                        ${isOnline ? 'Encendido' : 'Apagado'}
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="flex gap-2 relative z-10">
+                                <button onclick="editDevice('${device.id}')" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition-colors" title="Editar">
+                                    <i class="fa-solid fa-pen text-sm"></i>
+                                </button>
+                                <button onclick="deleteDevice('${device.id}')" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-red-900/50 flex items-center justify-center text-slate-400 hover:text-red-400 transition-colors" title="Eliminar">
+                                    <i class="fa-solid fa-trash text-sm"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="space-y-1 mb-6 text-sm text-slate-400">
+                            <p><i class="fa-solid fa-microchip w-5 text-center"></i> <span class="font-mono text-slate-300">${device.mac}</span></p>
+                            <p><i class="fa-solid fa-globe w-5 text-center"></i> <span class="font-mono">${device.ip}</span></p>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3 relative z-10">
+                            <button onclick="wakeDevice('${device.id}')" class="col-span-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-3 rounded-xl font-bold shadow-lg shadow-blue-900/50 hover:shadow-blue-900/80 transition-all flex justify-center items-center gap-2">
+                                <i class="fa-solid fa-power-off"></i> Encender
+                            </button>
+                            <button onclick="showInfo('El apagado remoto requiere instalar un software cliente en el PC. ¡Actualmente solo soporta encendido mágico!')" class="col-span-2 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2 rounded-xl font-medium transition-colors text-sm border border-slate-700">
+                                Apagar (Requiere Agente)
+                            </button>
+                        </div>
+                    `;
+                    grid.appendChild(card);
+                });
+            }
+        }
+
+        // ==================== LÓGICA DE NEGOCIO ====================
+        
+        async function wakeDevice(id) {
+            const device = devices.find(d => d.id === id);
+            if(!device) return;
+            
+            showToast(`Enviando orden a ${device.name}...`, 'info');
+            
+            try {
+                // Intento de conexión al backend Python
+                const response = await fetch(`${API_URL}/wake`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mac: device.mac, ip: device.ip })
+                });
+                
+                const data = await response.json();
+                if(data.success) {
+                    showToast('Paquete mágico enviado con éxito', 'success');
+                } else {
+                    throw new Error(data.error);
+                }
+            } catch (error) {
+                // Modo Simulación (Falla el fetch porque no hay backend en esta vista previa)
+                console.warn("Backend no detectado. Simulando envío...");
+                setTimeout(() => {
+                    showToast('Modo Simulación: Paquete enviado (Instala el backend Python para uso real)', 'success');
+                    // Simulamos que encendió después de 3 segundos
+                    setTimeout(() => {
+                        device.status = 'online';
+                        renderDevices();
+                    }, 3000);
+                }, 500);
+            }
+        }
+
+        async function checkAllStatuses() {
+            for (let i = 0; i < devices.length; i++) {
+                try {
+                    const response = await fetch(`${API_URL}/status?ip=${devices[i].localIp}`);
+                    const data = await response.json();
+                    devices[i].status = data.online ? 'online' : 'offline';
+                } catch (error) {
+                    // Modo Simulación: Mantiene el estado actual si no hay backend
+                    if(!devices[i].status) devices[i].status = 'offline'; 
+                }
+            }
+            renderDevices();
+        }
+
+        // ==================== CRUD Y MODAL ====================
+
+        function saveDevice(e) {
+            e.preventDefault();
+            const id = document.getElementById('deviceId').value;
+            const newDevice = {
+                id: id || Date.now().toString(),
+                name: document.getElementById('deviceName').value,
+                mac: document.getElementById('deviceMac').value,
+                ip: document.getElementById('deviceIp').value,
+                localIp: document.getElementById('deviceLocalIp').value,
+                status: 'offline'
+            };
+
+            if (id) {
+                const index = devices.findIndex(d => d.id === id);
+                // Mantener el estado actual al editar
+                newDevice.status = devices[index].status; 
+                devices[index] = newDevice;
+                showToast('Equipo actualizado', 'success');
+            } else {
+                devices.push(newDevice);
+                showToast('Equipo añadido', 'success');
+            }
+
+            localStorage.setItem('wol_devices', JSON.stringify(devices));
+            renderDevices();
+            closeModal();
+            checkAllStatuses();
+        }
+
+        function deleteDevice(id) {
+            if(confirm('¿Estás seguro de eliminar este equipo?')) {
+                devices = devices.filter(d => d.id !== id);
+                localStorage.setItem('wol_devices', JSON.stringify(devices));
+                renderDevices();
+                showToast('Equipo eliminado', 'info');
+            }
+        }
+
+        function editDevice(id) {
+            const device = devices.find(d => d.id === id);
+            if(!device) return;
+            
+            document.getElementById('modalTitle').innerText = 'Editar Equipo';
+            document.getElementById('deviceId').value = device.id;
+            document.getElementById('deviceName').value = device.name;
+            document.getElementById('deviceMac').value = device.mac;
+            document.getElementById('deviceIp').value = device.ip;
+            document.getElementById('deviceLocalIp').value = device.localIp;
+            openModal();
+        }
+
+        function openModal() {
+            const modal = document.getElementById('deviceModal');
+            const content = document.getElementById('modalContent');
+            modal.classList.remove('hidden');
+            // Trigger reflow
+            void modal.offsetWidth; 
+            modal.classList.remove('opacity-0');
+            content.classList.remove('scale-95');
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('deviceModal');
+            const content = document.getElementById('modalContent');
+            modal.classList.add('opacity-0');
+            content.classList.add('scale-95');
+            
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                document.getElementById('deviceForm').reset();
+                document.getElementById('deviceId').value = '';
+                document.getElementById('modalTitle').innerText = 'Nuevo Equipo';
+            }, 300);
+        }
+
+        // ==================== UTILIDADES ====================
+
+        function showToast(message, type = 'info') {
+            const toast = document.createElement('div');
+            const bgClass = type === 'success' ? 'bg-green-600' : 'bg-slate-700';
+            const icon = type === 'success' ? 'fa-check-circle' : 'fa-info-circle';
+            
+            toast.className = `${bgClass} text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 transform translate-y-10 opacity-0 transition-all duration-300`;
+            toast.innerHTML = `<i class="fa-solid ${icon}"></i> <span>${message}</span>`;
+            
+            const container = document.getElementById('toastContainer');
+            container.appendChild(toast);
+            
+            // Animate in
+            setTimeout(() => {
+                toast.classList.remove('translate-y-10', 'opacity-0');
+            }, 10);
+            
+            // Remove after 3 seconds
+            setTimeout(() => {
+                toast.classList.add('translate-y-10', 'opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        function showInfo(msg) {
+            alert(msg);
+        }
+    </script>
+</body>
+</html>
